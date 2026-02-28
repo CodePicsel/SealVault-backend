@@ -1,0 +1,89 @@
+{
+  "info": {
+    "name": "Docsign Backend - Signatures & PDF",
+    "_postman_id": "docsign-signatures-collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "fileId", "value": "" },
+    { "key": "signatureId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth - Login (get token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"alice@example.com\",\"password\":\"s3cureP@ssw0rd\"}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "response": []
+    },
+    {
+      "name": "List my files",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/uploads"
+      }
+    },
+    {
+      "name": "Upload signature image (multipart)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file", "type": "file", "src": "" }
+          ]
+        },
+        "url": "{{baseUrl}}/api/signatures/upload"
+      }
+    },
+    {
+      "name": "List my signature images",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/signatures"
+      }
+    },
+    {
+      "name": "Place signature on file (add placement)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"imageId\":\"{{signatureId}}\",\"page\":1,\"xRel\":0.6,\"yRel\":0.85,\"widthRel\":0.25}"
+        },
+        "url": "{{baseUrl}}/api/uploads/{{fileId}}/signatures"
+      }
+    },
+    {
+      "name": "Apply signatures and create signed PDF",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/uploads/{{fileId}}/apply-signatures"
+      }
+    },
+    {
+      "name": "Get signed versions for file (inspect)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/uploads/{{fileId}}"
+      }
+    }
+  ]
+}

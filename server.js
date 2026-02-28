@@ -46,6 +46,9 @@ const server = app.listen(PORT, () => {
 
 const uploadRoutes = require('./routes/uploads');
 app.use('/api/uploads', uploadRoutes);
+// server.js
+const signaturesRouter = require('./routes/signatures');
+app.use('/api/signatures', signaturesRouter);
 
 process.on('SIGTERM', () => {
   console.info('SIGTERM received: closing HTTP server');
