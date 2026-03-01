@@ -17,7 +17,13 @@ const PORT = process.env.PORT || 5000;
 
 connectDB(process.env.MONGO_URI || 'mongodb://localhost:27017/myapp');
 
-app.use(helmet());
+app.use(
+  helmet({
+    // Allow popups to safely postMessage back (required by some OAuth popups)
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    // You can leave other helmet defaults enabled — this just tweaks COOP
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 

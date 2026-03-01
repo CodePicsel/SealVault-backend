@@ -62,25 +62,33 @@ router.post(
 // LOGIN
 router.post(
   '/login',
-  [check('email', 'Valid email required').isEmail(), check('password', 'Password is required').exists()],
+  [
+    check('email', 'Valid email required').isEmail(),
+    check('password', 'Password is required').exists()
+  ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
     try {
       const { email, password } = req.body;
       const user = await User.findOne({ email });
       if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-
+      if (user.provider && user.provider !== 'local') {
+        return res.status(400).json({
+          message:
+            'This account was created via Google Sign-In. Please use "Sign in with Google" or set a password.'
+        });
+      }
       const match = await user.comparePassword(password);
       if (!match) return res.status(401).json({ message: 'Invalid credentials' });
-
       const accessToken = signAccessToken(user._id.toString());
       const rawRefresh = createRefreshToken();
       await addRefreshTokenToUser(user._id, rawRefresh, req);
       setRefreshCookie(res, rawRefresh);
-
-      return res.json({ token: accessToken, user: { id: user._id.toString(), email: user.email } });
+      return res.json({
+        token: accessToken,
+        user: { id: user._id.toString(), email: user.email, name: user.name }
+      });
     } catch (err) {
       console.error('Login error', err);
       return res.status(500).json({ message: 'Server error' });
