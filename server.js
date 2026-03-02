@@ -52,6 +52,9 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   res.json({ userId: req.user.id });
 });
 
+// const appwriteFiles = require('./routes/appwrite-files');
+// app.use('/api/appwrite', appwriteFiles);
+
 // error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
