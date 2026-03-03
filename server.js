@@ -28,7 +28,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Set exact frontend origin in env (example: http://localhost:5173)
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const CLIENT_ORIGIN = 'https://sealvaul.netlify.app' || 'http://localhost:5173' || process.env.CLIENT_ORIGIN;
 
 app.use(cors({
   origin: CLIENT_ORIGIN,
