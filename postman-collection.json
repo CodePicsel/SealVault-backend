@@ -1,89 +1,658 @@
 {
   "info": {
-    "name": "Docsign Backend - Signatures & PDF",
-    "_postman_id": "docsign-signatures-collection",
+    "name": "Docsign Backend - ESign + Audit + Email",
+    "_postman_id": "docsign-esign-audit-email-v1",
+    "description": "Production-style test collection for auth, file upload, signing workflow, audit, and email share routes.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:5000" },
-    { "key": "token", "value": "" },
+    { "key": "ownerEmail", "value": "alice@example.com" },
+    { "key": "ownerPassword", "value": "s3cureP@ssw0rd" },
+    { "key": "secondaryEmail", "value": "bob@example.com" },
+    { "key": "secondaryPassword", "value": "s3cureP@ssw0rd" },
+    { "key": "ownerToken", "value": "" },
+    { "key": "secondaryToken", "value": "" },
     { "key": "fileId", "value": "" },
-    { "key": "signatureId", "value": "" }
+    { "key": "signRequestId", "value": "" },
+    { "key": "inviteToken1", "value": "" },
+    { "key": "inviteToken2", "value": "" },
+    { "key": "auditToken", "value": "" },
+    { "key": "signer1Name", "value": "Alice Signer" },
+    { "key": "signer1Email", "value": "signer1@example.com" },
+    { "key": "signer2Name", "value": "Bob Signer" },
+    { "key": "signer2Email", "value": "signer2@example.com" },
+    { "key": "shareRecipient", "value": "client@example.com" },
+    { "key": "sampleSignatureDataUrl", "value": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg==" },
+    { "key": "invalidInviteToken", "value": "invalid-token-123" }
   ],
   "item": [
     {
-      "name": "Auth - Login (get token)",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"email\":\"alice@example.com\",\"password\":\"s3cureP@ssw0rd\"}"
+      "name": "00 - Auth",
+      "item": [
+        {
+          "name": "Login Owner",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 login owner', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.collectionVariables.set('ownerToken', json.token);"
+                ]
+              }
+            }
+          ],
+          "response": []
         },
-        "url": "{{baseUrl}}/api/auth/login"
-      },
-      "response": []
+        {
+          "name": "Login Secondary",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{secondaryEmail}}\",\n  \"password\": \"{{secondaryPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 login secondary', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.collectionVariables.set('secondaryToken', json.token);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     },
     {
-      "name": "List my files",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/api/uploads"
-      }
-    },
-    {
-      "name": "Upload signature image (multipart)",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "body": {
-          "mode": "formdata",
-          "formdata": [
-            { "key": "file", "type": "file", "src": "" }
-          ]
+      "name": "01 - Upload + Legacy Regression",
+      "item": [
+        {
+          "name": "Upload PDF (save fileId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/uploads/pdf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 upload pdf', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('fileId', json.id);"
+                ]
+              }
+            }
+          ],
+          "response": []
         },
-        "url": "{{baseUrl}}/api/signatures/upload"
-      }
+        {
+          "name": "List My Files (legacy route check)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/uploads"
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name": "List my signature images",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/api/signatures"
-      }
-    },
-    {
-      "name": "Place signature on file (add placement)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"imageId\":\"{{signatureId}}\",\"page\":1,\"xRel\":0.6,\"yRel\":0.85,\"widthRel\":0.25}"
+      "name": "02 - Signing Workflow (Owner)",
+      "item": [
+        {
+          "name": "Create Sign Request - Valid (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{fileId}}\",\n  \"title\": \"NDA - Vendor\",\n  \"message\": \"Please sign by Friday\",\n  \"expiresAt\": \"2099-12-31T23:59:59.000Z\",\n  \"signers\": [\n    { \"name\": \"{{signer1Name}}\", \"email\": \"{{signer1Email}}\", \"order\": 1 },\n    { \"name\": \"{{signer2Name}}\", \"email\": \"{{signer2Email}}\", \"order\": 2 }\n  ],\n  \"fields\": [\n    { \"signerEmail\": \"{{signer1Email}}\", \"page\": 1, \"xRel\": 0.65, \"yRel\": 0.82, \"widthRel\": 0.22, \"heightRel\": 0.08, \"required\": true },\n    { \"signerEmail\": \"{{signer2Email}}\", \"page\": 1, \"xRel\": 0.65, \"yRel\": 0.62, \"widthRel\": 0.22, \"heightRel\": 0.08, \"required\": true }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/sign-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 create sign request', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('signRequestId', json.id);"
+                ]
+              }
+            }
+          ],
+          "response": []
         },
-        "url": "{{baseUrl}}/api/uploads/{{fileId}}/signatures"
-      }
+        {
+          "name": "Create Sign Request - Validation (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{fileId}}\",\n  \"title\": \"Invalid\",\n  \"message\": \"x\",\n  \"expiresAt\": \"2099-12-31T23:59:59.000Z\",\n  \"signers\": [\n    { \"name\": \"{{signer1Name}}\", \"email\": \"{{signer1Email}}\", \"order\": 1 }\n  ],\n  \"fields\": [\n    { \"signerEmail\": \"{{signer1Email}}\", \"page\": 1, \"xRel\": 1.4, \"yRel\": 0.5, \"widthRel\": 0.2 }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/sign-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 create validation', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create Duplicate Active Sign Request (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{fileId}}\",\n  \"title\": \"Duplicate\",\n  \"message\": \"x\",\n  \"expiresAt\": \"2099-12-31T23:59:59.000Z\",\n  \"signers\": [\n    { \"name\": \"{{signer1Name}}\", \"email\": \"{{signer1Email}}\", \"order\": 1 },\n    { \"name\": \"{{signer2Name}}\", \"email\": \"{{signer2Email}}\", \"order\": 2 }\n  ],\n  \"fields\": [\n    { \"signerEmail\": \"{{signer1Email}}\", \"page\": 1, \"xRel\": 0.2, \"yRel\": 0.2, \"widthRel\": 0.2 },\n    { \"signerEmail\": \"{{signer2Email}}\", \"page\": 1, \"xRel\": 0.2, \"yRel\": 0.5, \"widthRel\": 0.2 }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/sign-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 duplicate request', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Sign Request (200)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/sign-requests/{{signRequestId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Send Invites (save tokens from mock links)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/sign-requests/{{signRequestId}}/send-invites"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 send invites', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "const deliveries = Array.isArray(json.deliveries) ? json.deliveries : [];",
+                  "const signer1 = (pm.collectionVariables.get('signer1Email') || '').toLowerCase();",
+                  "const signer2 = (pm.collectionVariables.get('signer2Email') || '').toLowerCase();",
+                  "const getToken = (link) => {",
+                  "  if (!link || typeof link !== 'string') return '';",
+                  "  const m = link.match(/\\/sign\\/([^/?#]+)/);",
+                  "  return m && m[1] ? m[1] : '';",
+                  "};",
+                  "deliveries.forEach((d) => {",
+                  "  const token = getToken(d.mockSigningLink);",
+                  "  if (!token) return;",
+                  "  const email = (d.email || '').toLowerCase();",
+                  "  if (email === signer1) {",
+                  "    pm.collectionVariables.set('inviteToken1', token);",
+                  "    pm.collectionVariables.set('auditToken', token);",
+                  "  }",
+                  "  if (email === signer2) pm.collectionVariables.set('inviteToken2', token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Send Invites Invalid requestId (422)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/sign-requests/not-a-valid-object-id/send-invites"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 invalid requestId', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Send Invites Forbidden (403)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{secondaryToken}}" }],
+            "url": "{{baseUrl}}/api/sign-requests/{{signRequestId}}/send-invites"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 forbidden send invites', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     },
     {
-      "name": "Apply signatures and create signed PDF",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/api/uploads/{{fileId}}/apply-signatures"
-      }
+      "name": "03 - Public Signing Flow",
+      "item": [
+        {
+          "name": "Open Signer2 Before Turn (200)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/signing/{{inviteToken2}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Sign Signer2 Before Turn (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureImageBase64\": \"{{sampleSignatureDataUrl}}\",\n  \"consent\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/signing/{{inviteToken2}}/sign"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 out of order', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Open Signer1 (200)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/signing/{{inviteToken1}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Sign Signer1 Without Consent (422)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureImageBase64\": \"{{sampleSignatureDataUrl}}\",\n  \"consent\": false\n}"
+            },
+            "url": "{{baseUrl}}/api/signing/{{inviteToken1}}/sign"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 consent required', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Sign Signer1 Success (200)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureImageBase64\": \"{{sampleSignatureDataUrl}}\",\n  \"consent\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/signing/{{inviteToken1}}/sign"
+          },
+          "response": []
+        },
+        {
+          "name": "Reuse Signer1 Token (410)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureImageBase64\": \"{{sampleSignatureDataUrl}}\",\n  \"consent\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/signing/{{inviteToken1}}/sign"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('410 already used', () => pm.response.to.have.status(410));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Open Invalid Invite Token (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/signing/{{invalidInviteToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 invalid invite token', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Sign Signer2 Success + Finalize (200)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureImageBase64\": \"{{sampleSignatureDataUrl}}\",\n  \"consent\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/signing/{{inviteToken2}}/sign"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 sign + finalize', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.finalPdfUrl) pm.collectionVariables.set('finalPdfUrl', json.finalPdfUrl);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     },
     {
-      "name": "Get signed versions for file (inspect)",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/api/uploads/{{fileId}}"
-      }
+      "name": "04 - Audit",
+      "item": [
+        {
+          "name": "Get Audit As Owner (200)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/audit/{{fileId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Audit As Secondary Without x-audit-token (401)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{secondaryToken}}" }],
+            "url": "{{baseUrl}}/api/audit/{{fileId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Audit With Invalid x-audit-token (403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-audit-token", "value": "invalid-audit-token" }],
+            "url": "{{baseUrl}}/api/audit/{{fileId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Audit With Signer Token (200)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-audit-token", "value": "{{auditToken}}" }],
+            "url": "{{baseUrl}}/api/audit/{{fileId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Audit Invalid fileId (422)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/api/audit/not-a-valid-object-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 invalid fileId', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Email Share",
+      "item": [
+        {
+          "name": "Share Original As Owner (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": [\"{{shareRecipient}}\"],\n  \"subject\": \"Original share\",\n  \"message\": \"Please review\",\n  \"version\": \"original\"\n}"
+            },
+            "url": "{{baseUrl}}/api/emails/files/{{fileId}}/share"
+          },
+          "response": []
+        },
+        {
+          "name": "Share Final As Owner (200 after completion)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": [\"{{shareRecipient}}\"],\n  \"subject\": \"Final signed\",\n  \"message\": \"Please find signed document\",\n  \"version\": \"final\"\n}"
+            },
+            "url": "{{baseUrl}}/api/emails/files/{{fileId}}/share"
+          },
+          "response": []
+        },
+        {
+          "name": "Share Final As Secondary (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{secondaryToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": [\"{{shareRecipient}}\"],\n  \"subject\": \"Forbidden test\",\n  \"message\": \"x\",\n  \"version\": \"final\"\n}"
+            },
+            "url": "{{baseUrl}}/api/emails/files/{{fileId}}/share"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Share Invalid fileId (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": [\"{{shareRecipient}}\"],\n  \"subject\": \"Invalid file\",\n  \"message\": \"x\",\n  \"version\": \"original\"\n}"
+            },
+            "url": "{{baseUrl}}/api/emails/files/not-a-valid-object-id/share"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 invalid file id', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Share Without Recipients (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": [],\n  \"subject\": \"No recipients\",\n  \"message\": \"x\",\n  \"version\": \"original\"\n}"
+            },
+            "url": "{{baseUrl}}/api/emails/files/{{fileId}}/share"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 missing recipients', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     }
   ]
 }

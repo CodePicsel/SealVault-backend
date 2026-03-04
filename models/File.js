@@ -33,7 +33,13 @@ const signedVersionSchema = new mongoose.Schema({
 // In your File schema:
 fileSchema.add({
   signatures: [signaturePlacementSchema], // placements for this file
-  signedVersions: [signedVersionSchema]
+  signedVersions: [signedVersionSchema],
+  activeSigningRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'SigningRequest' },
+  signingStatus: {
+    type: String,
+    enum: ['none', 'in_progress', 'completed', 'cancelled', 'expired'],
+    default: 'none'
+  }
 });
 
 module.exports = mongoose.model('File', fileSchema);
