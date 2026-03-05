@@ -9,11 +9,14 @@ const { generateOpaqueToken, hashToken } = require('../services/tokenService');
 
 const router = express.Router();
 
+const FIRST_CLIENT_ORIGIN = process.env.CLIENT_ORIGIN
+  ? process.env.CLIENT_ORIGIN.split(',')[0].trim()
+  : 'http://localhost:5173';
+
 const SIGNING_LINK_BASE_URL = (
   process.env.SIGNING_LINK_BASE_URL ||
   process.env.APP_BASE_URL ||
-  process.env.CLIENT_ORIGIN ||
-  'http://localhost:5173'
+  FIRST_CLIENT_ORIGIN
 ).replace(/\/$/, '');
 
 function normalizeEmail(value) {
@@ -225,14 +228,16 @@ router.post('/:requestId/send-invites', auth, async (req, res, next) => {
         new Date(signingRequest.expiresAt).getTime() + (parseInt(process.env.AUDIT_TOKEN_EXPIRES_DAYS || '30', 10) * 24 * 60 * 60 * 1000)
       );
 
-      const signingLink = `${SIGNING_LINK_BASE_URL}/sign/${inviteToken}`;
+      const signingLink = `${SIGNING_LINK_BASE_URL}/sign/public/${inviteToken}`;
       const subject = `Signature request: ${signingRequest.title || fileDoc.originalName}`;
       const text = [
         `Hello ${signer.name},`,
         '',
         `${req.body?.senderName || 'SealVault'} invited you to sign a document.`,
         signingRequest.message ? `Message: ${signingRequest.message}` : '',
-        `Signing link: ${signingLink}`,
+        '',
+        `Signing link: ${signingLink} `,
+        '',
         'Keep this same link safely. It can be used as your audit-access token after signing is complete.',
         `This link expires on ${new Date(signingRequest.expiresAt).toISOString()}.`
       ].filter(Boolean).join('\n');
@@ -311,6 +316,74 @@ router.post('/:requestId/send-invites', auth, async (req, res, next) => {
       summary: { total: deliveries.length, sent, failed },
       deliveries
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/assigned', auth, async (req, res, next) => {
+  try {
+    const User = mongoose.model('User');
+    const userDoc = await User.findById(req.user.id).lean();
+    if (!userDoc) return res.status(404).json({ message: 'User not found' });
+
+    // Find signing requests where signers array has an element with the user's email
+    // And hasn't expired/cancelled etc.
+    const requests = await SigningRequest.find({
+      'signers.email': userDoc.email,
+      status: { $in: ['in_progress', 'completed'] }
+    }).populate('fileId', 'originalName uploader').sort({ createdAt: -1 }).lean();
+
+    // Map them for the frontend
+    const mapped = requests.map(reqDoc => {
+      const mySigner = reqDoc.signers.find(s => s.email === userDoc.email);
+      const isMyTurn = reqDoc.status === 'in_progress' && mySigner.status === 'pending' && reqDoc.currentOrder === mySigner.order;
+      return {
+        _id: reqDoc._id,
+        fileId: reqDoc.fileId,
+        title: reqDoc.title,
+        message: reqDoc.message,
+        status: reqDoc.status,
+        expiresAt: reqDoc.expiresAt,
+        mySigner: mySigner,
+        isMyTurn,
+        createdAt: reqDoc.createdAt
+      };
+    });
+
+    res.json({ assigned: mapped });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/assigned/:requestId/token', auth, async (req, res, next) => {
+  try {
+    const requestId = req.params.requestId;
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      return res.status(422).json({ message: 'Invalid requestId' });
+    }
+
+    const User = mongoose.model('User');
+    const userDoc = await User.findById(req.user.id).lean();
+    if (!userDoc) return res.status(404).json({ message: 'User not found' });
+
+    const signingRequest = await SigningRequest.findById(requestId);
+    if (!signingRequest) return res.status(404).json({ message: 'Signing request not found' });
+
+    const mySigner = signingRequest.signers.find(s => s.email === userDoc.email);
+    if (!mySigner) return res.status(403).json({ message: 'You are not a signer on this request' });
+
+    const inviteToken = generateOpaqueToken();
+    const sharedTokenHash = hashToken(inviteToken);
+
+    if (!mySigner.alternativeTokenHashes) {
+      mySigner.alternativeTokenHashes = [];
+    }
+    mySigner.alternativeTokenHashes.push(sharedTokenHash);
+    await signingRequest.save();
+
+    res.json({ inviteToken });
   } catch (err) {
     return next(err);
   }

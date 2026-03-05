@@ -49,20 +49,42 @@ async function composeFinalSignedPdf({ fileDoc, signingRequest }) {
     const page = pdfDoc.getPage(pageIndex);
     const { width: pageWidth, height: pageHeight } = page.getSize();
 
-    const drawWidth = Number(field.widthRel) * pageWidth;
-    const drawHeight = field.heightRel
+    const boxWidth = Number(field.widthRel) * pageWidth;
+    const boxHeight = field.heightRel
       ? Number(field.heightRel) * pageHeight
-      : drawWidth * (cached.height / cached.width);
+      : boxWidth * (cached.height / cached.width);
 
-    const x = Number(field.xRel) * pageWidth;
-    const yFromTop = Number(field.yRel) * pageHeight;
-    const y = pageHeight - yFromTop - drawHeight;
+    const boxX = Number(field.xRel) * pageWidth;
+    const boxYFromTop = Number(field.yRel) * pageHeight;
+
+    const boxRatio = boxHeight / boxWidth;
+    const imgRatio = cached.height / cached.width;
+
+    let finalW = boxWidth;
+    let finalH = boxHeight;
+
+    if (imgRatio > boxRatio) {
+      // image is taller than the box, clamp height
+      finalH = boxHeight;
+      finalW = boxHeight / imgRatio;
+    } else {
+      // image is wider than the box, clamp width
+      finalW = boxWidth;
+      finalH = boxWidth * imgRatio;
+    }
+
+    const offsetX = (boxWidth - finalW) / 2;
+    const offsetY = (boxHeight - finalH) / 2;
+
+    const x = boxX + offsetX;
+    const yFromTop = boxYFromTop + offsetY;
+    const y = pageHeight - yFromTop - finalH;
 
     page.drawImage(cached.embedded, {
       x,
       y,
-      width: drawWidth,
-      height: drawHeight
+      width: finalW,
+      height: finalH
     });
   }
 

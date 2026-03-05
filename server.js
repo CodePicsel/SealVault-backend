@@ -37,11 +37,23 @@ app.use(cookieParser());
 app.use(requestMeta);
 app.use(auditLogger);
 
-// Set exact frontend origin in env (example: http://localhost:5173)
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'https://sealvaul.netlify.app';
+// Parse allowed origins from env, allowing for comma-separated lists and stripping trailing slashes
+const rawOrigins = process.env.CLIENT_ORIGIN || 'https://sealvault.netlify.app,http://localhost:5173,http://localhost:5174';
+const allowedOrigins = rawOrigins.split(',').map(o => o.trim().replace(/\/$/, ''));
 
 app.use(cors({
-  origin: CLIENT_ORIGIN,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile/curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if the origin matches any of the allowed origins exactly
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

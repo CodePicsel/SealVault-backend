@@ -18,6 +18,7 @@ const signerSchema = new mongoose.Schema({
     default: 'pending'
   },
   inviteTokenHash: { type: String, index: true },
+  alternativeTokenHashes: { type: [String], index: true, default: [] },
   inviteTokenExpiresAt: { type: Date },
   inviteTokenConsumedAt: { type: Date },
   auditTokenHash: { type: String, index: true },
@@ -62,6 +63,7 @@ const signingRequestSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 signingRequestSchema.index({ 'signers.inviteTokenHash': 1 });
+signingRequestSchema.index({ 'signers.alternativeTokenHashes': 1 });
 signingRequestSchema.index({ 'signers.auditTokenHash': 1 });
 
 module.exports = mongoose.model('SigningRequest', signingRequestSchema);

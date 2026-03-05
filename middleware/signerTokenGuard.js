@@ -20,11 +20,16 @@ module.exports = (options = {}) => {
 
       const inviteTokenHash = hashToken(inviteToken);
       const signingRequest = await SigningRequest.findOne({
-        'signers.inviteTokenHash': inviteTokenHash
+        $or: [
+          { 'signers.inviteTokenHash': inviteTokenHash },
+          { 'signers.alternativeTokenHashes': inviteTokenHash }
+        ]
       });
       if (!signingRequest) return res.status(404).json({ message: 'Invalid signing link' });
 
-      const signer = signingRequest.signers.find((s) => s.inviteTokenHash === inviteTokenHash);
+      const signer = signingRequest.signers.find(
+        (s) => s.inviteTokenHash === inviteTokenHash || (s.alternativeTokenHashes && s.alternativeTokenHashes.includes(inviteTokenHash))
+      );
       if (!signer) return res.status(404).json({ message: 'Signer not found' });
 
       const expired = hasExpired(signer.inviteTokenExpiresAt) || hasExpired(signingRequest.expiresAt);
