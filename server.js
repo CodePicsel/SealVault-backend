@@ -7,6 +7,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser'); // install if missing
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const connectDB = require('./config/db');
 
 const authRoutes = require('./routes/auth');
@@ -32,6 +33,7 @@ app.use(
     // You can leave other helmet defaults enabled — this just tweaks COOP
   })
 );
+app.use(compression());
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '5mb' }));
 app.use(cookieParser());
 app.use(requestMeta);
@@ -56,6 +58,14 @@ app.use(cors({
   },
   credentials: true
 }));
+
+const globalLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 200, // max 200 requests per window
+  message: 'Too many requests globally, please try again later.'
+});
+app.use('/api/', globalLimiter);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 if (process.env.NODE_ENV !== 'production') app.use(morgan('dev'));

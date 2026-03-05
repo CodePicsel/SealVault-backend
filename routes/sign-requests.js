@@ -78,6 +78,11 @@ function validateCreateBody(body) {
     errors.push('expiresAt must be a valid ISO date');
   } else if (expiresAt.getTime() <= Date.now()) {
     errors.push('expiresAt must be in the future');
+  } else {
+    const maxExpiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    if (expiresAt.getTime() > maxExpiresAt.getTime()) {
+      errors.push('expiresAt cannot be more than 15 days in the future');
+    }
   }
 
   return {
