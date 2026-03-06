@@ -7,7 +7,9 @@ const fs = require('fs');
 const supabase = require('../config/supabase'); // existing in your project
 const File = require('../models/File');
 const SignatureImage = require('../models/SignatureImage');
+const SigningRequest = require('../models/SigningRequest');
 const auth = require('../middleware/auth');
+const { resolveAssetUrl } = require('../services/fileAccess');
 
 // helper that tries supabase then local fallback (create as ../helpers/storage.js)
 const { saveBuffer } = require('../helpers/storage');
@@ -113,6 +115,57 @@ router.get('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('Get file error:', err);
     res.status(500).json({ message: 'Could not fetch file' });
+  }
+});
+
+/**
+ * GET /api/uploads/:id/final-download
+ * Resolve a fresh URL for the latest final signed document.
+ * Preference order:
+ * 1) Completed signing workflow final PDF
+ * 2) Latest file.signedVersions entry
+ */
+router.get('/:id/final-download', auth, async (req, res) => {
+  try {
+    const fileDoc = await File.findById(req.params.id).lean();
+    if (!fileDoc) return res.status(404).json({ message: 'File not found' });
+    if (fileDoc.uploader.toString() !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+
+    let asset = null;
+
+    const latestCompletedRequest = await SigningRequest.findOne({
+      fileId: fileDoc._id,
+      status: 'completed'
+    })
+      .sort({ completedAt: -1, updatedAt: -1 })
+      .lean();
+
+    if (latestCompletedRequest && (latestCompletedRequest.finalPdfStoragePath || latestCompletedRequest.finalPdfUrl)) {
+      asset = {
+        storagePath: latestCompletedRequest.finalPdfStoragePath,
+        url: latestCompletedRequest.finalPdfUrl
+      };
+    } else if (Array.isArray(fileDoc.signedVersions) && fileDoc.signedVersions.length > 0) {
+      const latestSigned = fileDoc.signedVersions[fileDoc.signedVersions.length - 1];
+      asset = {
+        storagePath: latestSigned.storagePath,
+        url: latestSigned.url
+      };
+    }
+
+    if (!asset) {
+      return res.status(404).json({ message: 'No final signed document found for this file' });
+    }
+
+    const url = await resolveAssetUrl(asset, 3600);
+    if (!url) {
+      return res.status(500).json({ message: 'Could not generate final download URL' });
+    }
+
+    return res.json({ url });
+  } catch (err) {
+    console.error('Final download error:', err);
+    return res.status(500).json({ message: 'Could not create final download link' });
   }
 });
 
