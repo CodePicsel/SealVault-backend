@@ -282,6 +282,15 @@ router.post(
 
         fileDoc.signingStatus = 'completed';
         fileDoc.activeSigningRequestId = signingRequest._id;
+        
+        // Push final signed document to signedVersions array
+        fileDoc.signedVersions = fileDoc.signedVersions || [];
+        fileDoc.signedVersions.push({
+          storagePath: signingRequest.finalPdfStoragePath,
+          url: signingRequest.finalPdfUrl,
+          createdAt: new Date()
+        });
+        
         await fileDoc.save();
 
         const finalUrl = (await resolveAssetUrl({
